@@ -17,8 +17,14 @@ PeParser::PeParser(const WCHAR * file, bool readSectionHeaders)
 	initClass();
 
 	filename = file;
+  if (!filename) return;
 
-	if (filename)
+  readPeHeaderFromFile(readSectionHeaders);
+  if (!readSectionHeaders) return;
+
+  if (isValidPeFile()) getSectionHeaders();
+
+	/*if (filename)
 	{
 		readPeHeaderFromFile(readSectionHeaders);
 
@@ -29,7 +35,7 @@ PeParser::PeParser(const WCHAR * file, bool readSectionHeaders)
 				getSectionHeaders();
 			}
 		}
-	}
+	}*/
 }
 
 PeParser::PeParser(const DWORD_PTR moduleBase, bool readSectionHeaders)
@@ -37,8 +43,14 @@ PeParser::PeParser(const DWORD_PTR moduleBase, bool readSectionHeaders)
 	initClass();
 
 	moduleBaseAddress = moduleBase;
+  if (!moduleBaseAddress) return;
 
-	if (moduleBaseAddress)
+  readPeHeaderFromProcess(readSectionHeaders);
+  if (!readSectionHeaders) return;
+
+  if (isValidPeFile()) getSectionHeaders();
+
+	/*if (moduleBaseAddress)
 	{
 		readPeHeaderFromProcess(readSectionHeaders);
 
@@ -49,20 +61,21 @@ PeParser::PeParser(const DWORD_PTR moduleBase, bool readSectionHeaders)
 				getSectionHeaders();
 			}
 		}
-	}
+	}*/
 
 }
 
 PeParser::~PeParser()
 {
-	if (headerMemory)
+	/*if (headerMemory)
 	{
 		delete [] headerMemory;
-	}
-	if (fileMemory)
+	}*/
+
+	/*if (fileMemory)
 	{
 		delete [] fileMemory;
-	}
+	}*/
 
 	for (size_t i = 0; i < listPeSection.size(); i++)
 	{
@@ -77,8 +90,8 @@ PeParser::~PeParser()
 
 void PeParser::initClass()
 {
-	fileMemory = 0;
-	headerMemory = 0;
+	//fileMemory = 0;
+	//headerMemory = 0;
 
 	pDosHeader = 0;
 	pDosStub = 0;
@@ -202,31 +215,50 @@ bool PeParser::readPeHeaderFromProcess(bool readSectionHeaders)
 
 	DWORD readSize = getInitialHeaderReadSize(readSectionHeaders);
 
-	headerMemory = new BYTE[readSize];
+	//headerMemory = new BYTE[readSize];
+  //headerMemory = std::shared_ptr<BYTE>(new BYTE[readSize], std::default_delete<BYTE[]>());
+  headerMemory = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(readSize), std::default_delete<BYTE[]>());
 
-	if (ProcessAccessHelp::readMemoryPartlyFromProcess(moduleBaseAddress, readSize, headerMemory))
-	{
-		retValue = true;
+  if (!ProcessAccessHelp::readMemoryPartlyFromProcess(moduleBaseAddress, readSize, headerMemory.get())) return retValue;
 
-		getDosAndNtHeader(headerMemory, (LONG)readSize);
+  retValue = true;
+  getDosAndNtHeader(headerMemory.get(), (LONG)readSize);
 
-		if (isValidPeFile())
-		{
-			correctSize = calcCorrectPeHeaderSize(readSectionHeaders);
+  if (!isValidPeFile()) return retValue;
 
-			if (readSize < correctSize)
-			{
-				readSize = correctSize;
-				delete [] headerMemory;
-				headerMemory = new BYTE[readSize];
+  correctSize = calcCorrectPeHeaderSize(readSectionHeaders);
+  if (readSize >= correctSize) return retValue;
 
-				if (ProcessAccessHelp::readMemoryPartlyFromProcess(moduleBaseAddress, readSize, headerMemory))
-				{
-					getDosAndNtHeader(headerMemory, (LONG)readSize);
-				}
-			}
-		}
-	}
+  readSize = correctSize;
+  headerMemory = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(readSize), std::default_delete<BYTE[]>());
+
+  if (!ProcessAccessHelp::readMemoryPartlyFromProcess(moduleBaseAddress, readSize, headerMemory.get())) return retValue;
+  getDosAndNtHeader(headerMemory.get(), (LONG)readSize);
+
+	//if (ProcessAccessHelp::readMemoryPartlyFromProcess(moduleBaseAddress, readSize, headerMemory.get()))
+	//{
+	//	retValue = true;
+
+	//	getDosAndNtHeader(headerMemory.get(), (LONG)readSize);
+
+	//	if (isValidPeFile())
+	//	{
+	//		correctSize = calcCorrectPeHeaderSize(readSectionHeaders);
+
+	//		if (readSize < correctSize)
+	//		{
+	//			readSize = correctSize;
+	//			/*delete [] headerMemory;
+	//			headerMemory = new BYTE[readSize];*/
+ //       headerMemory = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(readSize), std::default_delete<BYTE[]>());
+
+	//			if (ProcessAccessHelp::readMemoryPartlyFromProcess(moduleBaseAddress, readSize, headerMemory.get()))
+	//			{
+	//				getDosAndNtHeader(headerMemory.get(), (LONG)readSize);
+	//			}
+	//		}
+	//	}
+	//}
 
 	return retValue;
 }
@@ -239,17 +271,18 @@ bool PeParser::readPeHeaderFromFile(bool readSectionHeaders)
 
 	DWORD readSize = getInitialHeaderReadSize(readSectionHeaders);
 
-	headerMemory = new BYTE[readSize];
+	//headerMemory = new BYTE[readSize];
+  headerMemory = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(readSize), std::default_delete<BYTE[]>());
 
 	if (openFileHandle())
 	{
 		fileSize = (DWORD)ProcessAccessHelp::getFileSize(hFile);
 
-		if (ReadFile(hFile, headerMemory, readSize, &numberOfBytesRead, 0))
+		if (ReadFile(hFile, headerMemory.get(), readSize, &numberOfBytesRead, 0))
 		{
 			retValue = true;
 
-			getDosAndNtHeader(headerMemory, (LONG)readSize);
+			getDosAndNtHeader(headerMemory.get(), (LONG)readSize);
 
 			if (isValidPeFile())
 			{
@@ -268,14 +301,15 @@ bool PeParser::readPeHeaderFromFile(bool readSectionHeaders)
 					}
 
 					
-					delete [] headerMemory;
-					headerMemory = new BYTE[readSize];
+					/*delete [] headerMemory;
+					headerMemory = new BYTE[readSize];*/
+          headerMemory = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(readSize), std::default_delete<BYTE[]>());
 
 					SetFilePointer(hFile, 0, 0, FILE_BEGIN);
 
-					if (ReadFile(hFile, headerMemory, readSize, &numberOfBytesRead, 0))
+					if (ReadFile(hFile, headerMemory.get(), readSize, &numberOfBytesRead, 0))
 					{
-						getDosAndNtHeader(headerMemory, (LONG)readSize);
+						getDosAndNtHeader(headerMemory.get(), (LONG)readSize);
 					}
 				}
 			}

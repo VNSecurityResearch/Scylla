@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <vector>
+#include <memory>
 #include "DumpSectionGui.h"
 
 class PeFileSection {
@@ -71,10 +72,10 @@ public:
 	DWORD_PTR convertRVAToOffsetRelative(DWORD_PTR dwRVA);
 	DWORD getSectionAddressRVAByIndex( int index );
 
-    PIMAGE_NT_HEADERS getCurrentNtHeader();
+  PIMAGE_NT_HEADERS getCurrentNtHeader();
+
 protected:
 	PeParser();
-
 
 	static const DWORD FileAlignmentConstant = 0x200;
 
@@ -100,8 +101,10 @@ protected:
 	DWORD overlaySize;
 	/************************************************************************/
 
-	BYTE * fileMemory;
-	BYTE * headerMemory;
+	//BYTE * fileMemory;
+	//BYTE * headerMemory;
+  std::shared_ptr<BYTE> fileMemory;
+  std::shared_ptr<BYTE> headerMemory;
 
 	HANDLE hFile;
 	DWORD fileSize;
