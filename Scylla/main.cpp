@@ -104,6 +104,7 @@ void AddExceptionHandler()
 {
 	oldFilter = SetUnhandledExceptionFilter(HandleUnknownException);
 }
+
 void RemoveExceptionHandler()
 {
 	SetUnhandledExceptionFilter(oldFilter);

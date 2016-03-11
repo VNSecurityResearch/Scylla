@@ -8,14 +8,15 @@
 class PeFileSection {
 public:
 	IMAGE_SECTION_HEADER sectionHeader;
-	BYTE * data;
+	//BYTE * data;
+  std::shared_ptr<BYTE> data;
 	DWORD dataSize;
 	DWORD normalSize;
 
 	PeFileSection()
 	{
 		ZeroMemory(&sectionHeader, sizeof(IMAGE_SECTION_HEADER));
-		data = 0;
+		//data = 0;
 		dataSize = 0;
 		normalSize = 0;
 	}
@@ -70,7 +71,7 @@ public:
 	DWORD_PTR convertOffsetToRVAVector(DWORD_PTR dwOffset);
 	DWORD_PTR convertRVAToOffsetVector(DWORD_PTR dwRVA);
 	DWORD_PTR convertRVAToOffsetRelative(DWORD_PTR dwRVA);
-	DWORD getSectionAddressRVAByIndex( int index );
+	DWORD getSectionAddressRVAByIndex(int index);
 
   PIMAGE_NT_HEADERS getCurrentNtHeader();
 

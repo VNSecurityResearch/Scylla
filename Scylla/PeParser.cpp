@@ -12,17 +12,19 @@ PeParser::PeParser()
 	initClass();
 }
 
-PeParser::PeParser(const WCHAR * file, bool readSectionHeaders)
+PeParser::PeParser(const WCHAR * file, bool readSectionHeaders) : PeParser()
 {
-	initClass();
+	//initClass();
 
 	filename = file;
   if (!filename) return;
 
   readPeHeaderFromFile(readSectionHeaders);
-  if (!readSectionHeaders) return;
 
-  if (isValidPeFile()) getSectionHeaders();
+  if (readSectionHeaders && isValidPeFile()) getSectionHeaders();
+
+  /*if (!readSectionHeaders) return;
+  if (isValidPeFile()) getSectionHeaders();*/
 
 	/*if (filename)
 	{
@@ -38,9 +40,9 @@ PeParser::PeParser(const WCHAR * file, bool readSectionHeaders)
 	}*/
 }
 
-PeParser::PeParser(const DWORD_PTR moduleBase, bool readSectionHeaders)
+PeParser::PeParser(const DWORD_PTR moduleBase, bool readSectionHeaders) : PeParser()
 {
-	initClass();
+	//initClass();
 
 	moduleBaseAddress = moduleBase;
   if (!moduleBaseAddress) return;
@@ -77,13 +79,13 @@ PeParser::~PeParser()
 		delete [] fileMemory;
 	}*/
 
-	for (size_t i = 0; i < listPeSection.size(); i++)
+	/*for (size_t i = 0; i < listPeSection.size(); i++)
 	{
 		if (listPeSection[i].data)
 		{
 			delete [] listPeSection[i].data;
 		}
-	}
+	}*/
 
 	listPeSection.clear();
 }
@@ -109,26 +111,30 @@ void PeParser::initClass()
 
 bool PeParser::isPE64()
 {
-	if (isValidPeFile())
+  return isValidPeFile() ? (pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) : false;
+
+	/*if (isValidPeFile())
 	{
 		return (pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC);
 	}
 	else
 	{
 		return false;
-	}
+	}*/
 }
 
 bool PeParser::isPE32()
 {
-	if (isValidPeFile())
+  return isValidPeFile() ? (pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) : false;
+
+	/*if (isValidPeFile())
 	{
 		return (pNTHeader32->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC);
 	}
 	else
 	{
 		return false;
-	}
+	}*/
 }
 
 bool PeParser::isTargetFileSamePeFormat()
@@ -775,7 +781,7 @@ bool PeParser::savePeFileToDisk( const WCHAR * newFile )
 
 			if (dwWriteSize)
 			{
-				if (!ProcessAccessHelp::writeMemoryToFile(hFile, listPeSection[i].sectionHeader.PointerToRawData, dwWriteSize, listPeSection[i].data))
+				if (!ProcessAccessHelp::writeMemoryToFile(hFile, listPeSection[i].sectionHeader.PointerToRawData, dwWriteSize, listPeSection[i].data.get()))
 				{
 					retValue = false;
 					break;
@@ -844,18 +850,20 @@ bool PeParser::readPeSectionFromFile(DWORD readOffset, PeFileSection & peFileSec
 {
 	DWORD bytesRead = 0;
 
-	peFileSection.data = new BYTE[peFileSection.dataSize];
+	//peFileSection.data = new BYTE[peFileSection.dataSize];
+  peFileSection.data = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(peFileSection.dataSize), std::default_delete<BYTE[]>());
 
 	SetFilePointer(hFile, readOffset, 0, FILE_BEGIN);
 
-	return (ReadFile(hFile, peFileSection.data, peFileSection.dataSize, &bytesRead, 0) != FALSE);
+	return (ReadFile(hFile, peFileSection.data.get(), peFileSection.dataSize, &bytesRead, 0) != FALSE);
 }
 
 bool PeParser::readPeSectionFromProcess(DWORD_PTR readOffset, PeFileSection & peFileSection)
 {
-	peFileSection.data = new BYTE[peFileSection.dataSize];
+	//peFileSection.data = new BYTE[peFileSection.dataSize];
+  peFileSection.data = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(peFileSection.dataSize), std::default_delete<BYTE[]>());
 
-	return ProcessAccessHelp::readMemoryPartlyFromProcess(readOffset, peFileSection.dataSize, peFileSection.data);
+	return ProcessAccessHelp::readMemoryPartlyFromProcess(readOffset, peFileSection.dataSize, peFileSection.data.get());
 }
 
 DWORD PeParser::alignValue(DWORD badValue, DWORD alignTo)
@@ -901,12 +909,14 @@ bool PeParser::addNewLastSection(const CHAR * sectionName, DWORD sectionSize, BY
 
 	if (sectionData == 0)
 	{
-		peFileSection.data = new BYTE[peFileSection.sectionHeader.SizeOfRawData];
-		ZeroMemory(peFileSection.data , peFileSection.sectionHeader.SizeOfRawData);
+		//peFileSection.data = new BYTE[peFileSection.sectionHeader.SizeOfRawData];
+    peFileSection.data = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(peFileSection.sectionHeader.SizeOfRawData), std::default_delete<BYTE[]>());
+		ZeroMemory(peFileSection.data.get(), peFileSection.sectionHeader.SizeOfRawData);
 	}
 	else
 	{
-		peFileSection.data = sectionData;
+		//peFileSection.data = sectionData;
+    peFileSection.data.reset(sectionData);
 	}
 
 	listPeSection.push_back(peFileSection);
@@ -1293,7 +1303,7 @@ bool PeParser::updatePeHeaderChecksum(const WCHAR * targetFile, DWORD fileSize)
 
 BYTE * PeParser::getSectionMemoryByIndex(int index)
 {
-	return listPeSection[index].data;
+	return listPeSection[index].data.get();
 }
 
 DWORD PeParser::getSectionMemorySizeByIndex(int index)
