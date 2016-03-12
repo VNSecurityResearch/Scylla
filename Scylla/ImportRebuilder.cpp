@@ -453,7 +453,8 @@ void ImportRebuilder::enableNewIatInSection(DWORD_PTR iatAddress, DWORD iatSize)
 	iatReferenceScan->ScanForDirectImports = false;
 	iatReferenceScan->ScanForNormalImports = true;
 
-	iatReferenceScan->startScan(ProcessAccessHelp::targetImageBase, (DWORD)ProcessAccessHelp::targetSizeOfImage, IatAddress, IatSize);
+	iatReferenceScan->startScan(ProcessAccessHelp::targetImageBase, 
+                              (DWORD)ProcessAccessHelp::targetSizeOfImage, IatAddress, IatSize);
 }
 
 void ImportRebuilder::patchFileForNewIatLocation()
@@ -483,11 +484,13 @@ void ImportRebuilder::patchFileForDirectImportJumpTable()
 {
 	if (newIatInSection)
 	{
-		iatReferenceScan->patchDirectJumpTable(getStandardImagebase(), directImportsJumpTableRVA, (PeParser *)this, JMPTableMemory, newIatBaseAddressRVA);
+		iatReferenceScan->patchDirectJumpTable(getStandardImagebase(), 
+                                           directImportsJumpTableRVA, (PeParser *)this, JMPTableMemory, newIatBaseAddressRVA);
 	}
 	else
 	{
-		iatReferenceScan->patchDirectJumpTable(getStandardImagebase(), directImportsJumpTableRVA, (PeParser *)this, JMPTableMemory, 0);
+		iatReferenceScan->patchDirectJumpTable(getStandardImagebase(), 
+                                           directImportsJumpTableRVA, (PeParser *)this, JMPTableMemory, 0);
 	}
 }
 

@@ -267,7 +267,9 @@ bool ProcessAccessHelp::decomposeMemory(BYTE * dataBuffer, SIZE_T bufferSize, DW
 
 	decomposerInstructionsCount = 0;
 
-	if (distorm_decompose(&decomposerCi, decomposerResult, sizeof(decomposerResult)/sizeof(decomposerResult[0]), &decomposerInstructionsCount) == DECRES_INPUTERR)
+	if (distorm_decompose(&decomposerCi, decomposerResult, 
+                        sizeof(decomposerResult)/sizeof(decomposerResult[0]), 
+                        &decomposerInstructionsCount) == DECRES_INPUTERR)
 	{
 #ifdef DEBUG_COMMENTS
 		Scylla::debugLog.log(L"decomposeMemory :: distorm_decompose == DECRES_INPUTERR");
@@ -292,7 +294,8 @@ bool ProcessAccessHelp::disassembleMemory(BYTE * dataBuffer, SIZE_T bufferSize, 
 
 	_OffsetType offset = startOffset;
 
-	res = distorm_decode(offset, dataBuffer, (int)bufferSize, dt, decodedInstructions, MAX_INSTRUCTIONS, &decodedInstructionsCount);
+	res = distorm_decode(offset, dataBuffer, (int)bufferSize, dt, 
+                       decodedInstructions, MAX_INSTRUCTIONS, &decodedInstructionsCount);
 
 /*	for (unsigned int i = 0; i < decodedInstructionsCount; i++) {
 #ifdef SUPPORT_64BIT_OFFSET

@@ -2,6 +2,7 @@
 #include "Scylla.h"
 #include "Architecture.h"
 
+#include <memory>
 
 //#define DEBUG_COMMENTS
 
@@ -259,39 +260,59 @@ bool IATSearch::isIATPointerValid(DWORD_PTR iatPointer, bool checkRedirects)
 
 bool IATSearch::findIATStartAndSize(DWORD_PTR address, DWORD_PTR * addressIAT, DWORD * sizeIAT)
 {
-	BYTE *dataBuffer = 0;
-    DWORD_PTR baseAddress = 0;
-    DWORD baseSize = 0;
+	//BYTE *dataBuffer = 0;
+  DWORD_PTR baseAddress = 0;
+  DWORD baseSize = 0;
 
-    getMemoryBaseAndSizeForIat(address, &baseAddress, &baseSize);
+  getMemoryBaseAndSizeForIat(address, &baseAddress, &baseSize);
 
-    if (!baseAddress)
-        return false;
+  if (!baseAddress) return false;
 
-	dataBuffer = new BYTE[baseSize * (sizeof(DWORD_PTR)*3)];
+  try {
+    auto buffer_len = baseSize * (sizeof(DWORD_PTR) * 3);
+    auto dataBuffer = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(buffer_len), 
+                                            std::default_delete<BYTE[]>());
+    memset(dataBuffer.get(), buffer_len, 0);
 
-    if (!dataBuffer)
-        return false;
-
-	ZeroMemory(dataBuffer, baseSize * (sizeof(DWORD_PTR)*3));
-
-	if (!readMemoryFromProcess(baseAddress, baseSize, dataBuffer))
-	{
+    if (!readMemoryFromProcess(baseAddress, baseSize, dataBuffer.get()))
+    {
 #ifdef DEBUG_COMMENTS
-		Scylla::debugLog.log(L"findIATStartAddress :: error reading memory");
+      Scylla::debugLog.log(L"findIATStartAddress :: error reading memory");
 #endif
-		delete [] dataBuffer;
-		return false;
-	}
+      return false;
+    }
 
-	//printf("address %X memBasic.BaseAddress %X memBasic.RegionSize %X\n",address,memBasic.BaseAddress,memBasic.RegionSize);
+    *addressIAT = findIATStartAddress(baseAddress, address, dataBuffer.get());
 
-	*addressIAT = findIATStartAddress(baseAddress, address, dataBuffer);
+    *sizeIAT = findIATSize(baseAddress, *addressIAT, dataBuffer.get(), baseSize);
+  }
+  catch (const std::bad_alloc& alloc_ex) {
+    return false;
+  }
 
-	*sizeIAT = findIATSize(baseAddress, *addressIAT, dataBuffer, baseSize);
-
-	delete [] dataBuffer;
-
+//	dataBuffer = new BYTE[baseSize * (sizeof(DWORD_PTR)*3)];
+//
+//  if (!dataBuffer) return false;
+//
+//	ZeroMemory(dataBuffer, baseSize * (sizeof(DWORD_PTR)*3));
+//
+//	if (!readMemoryFromProcess(baseAddress, baseSize, dataBuffer))
+//	{
+//#ifdef DEBUG_COMMENTS
+//		Scylla::debugLog.log(L"findIATStartAddress :: error reading memory");
+//#endif
+//		delete [] dataBuffer;
+//		return false;
+//	}
+//
+//	//printf("address %X memBasic.BaseAddress %X memBasic.RegionSize %X\n",address,memBasic.BaseAddress,memBasic.RegionSize);
+//
+//	*addressIAT = findIATStartAddress(baseAddress, address, dataBuffer);
+//
+//	*sizeIAT = findIATSize(baseAddress, *addressIAT, dataBuffer, baseSize);
+//
+//	delete [] dataBuffer;
+//
 	return true;
 }
 
@@ -409,7 +430,8 @@ void IATSearch::findExecutableMemoryPagesByStartAddress( DWORD_PTR startAddress,
 	*memorySize = 0;
 	*baseAddress = 0;
 
-	if (VirtualQueryEx(hProcess,(LPCVOID)startAddress, &memBasic, sizeof(MEMORY_BASIC_INFORMATION)) != sizeof(MEMORY_BASIC_INFORMATION))
+	if (VirtualQueryEx(hProcess,(LPCVOID)startAddress, &memBasic, 
+                     sizeof(MEMORY_BASIC_INFORMATION)) != sizeof(MEMORY_BASIC_INFORMATION))
 	{
 #ifdef DEBUG_COMMENTS
 		Scylla::debugLog.log(L"findIATStartAddress :: VirtualQueryEx error %u", GetLastError());
@@ -424,7 +446,8 @@ void IATSearch::findExecutableMemoryPagesByStartAddress( DWORD_PTR startAddress,
 		*baseAddress = (DWORD_PTR)memBasic.BaseAddress;
 		tempAddress = (DWORD_PTR)memBasic.BaseAddress - 1;
 
-		if (VirtualQueryEx(hProcess, (LPCVOID)tempAddress, &memBasic, sizeof(MEMORY_BASIC_INFORMATION)) != sizeof(MEMORY_BASIC_INFORMATION))
+		if (VirtualQueryEx(hProcess, (LPCVOID)tempAddress, &memBasic, 
+                       sizeof(MEMORY_BASIC_INFORMATION)) != sizeof(MEMORY_BASIC_INFORMATION))
 		{
 			break;
 		}
@@ -439,7 +462,8 @@ void IATSearch::findExecutableMemoryPagesByStartAddress( DWORD_PTR startAddress,
 		tempAddress += memBasic.RegionSize;
 		*memorySize += memBasic.RegionSize;
 
-		if (VirtualQueryEx(hProcess, (LPCVOID)tempAddress, &memBasic, sizeof(MEMORY_BASIC_INFORMATION)) != sizeof(MEMORY_BASIC_INFORMATION))
+		if (VirtualQueryEx(hProcess, (LPCVOID)tempAddress, &memBasic, 
+                       sizeof(MEMORY_BASIC_INFORMATION)) != sizeof(MEMORY_BASIC_INFORMATION))
 		{
 			break;
 		}

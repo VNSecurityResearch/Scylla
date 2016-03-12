@@ -1229,7 +1229,8 @@ bool PeParser::dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR 
 	return false;*/
 }
 
-bool PeParser::dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR * dumpFilePath, std::vector<PeSection> & sectionList)
+bool PeParser::dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR * dumpFilePath, 
+                           std::vector<PeSection> & sectionList)
 {
 	if (listPeSection.size() == sectionList.size())
 	{
