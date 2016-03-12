@@ -3,6 +3,7 @@
 #include "Scylla.h"
 #include "StringConversion.h"
 
+#include <cstring>
 //#define DEBUG_COMMENTS
 
 /*
@@ -62,7 +63,7 @@ bool ImportRebuilder::buildNewImportTable(std::map<DWORD_PTR, ImportModuleThunk>
 	if (BuildDirectImportsJumpTable)
 	{
 		directImportsJumpTableRVA = listPeSection[importSectionIndex].sectionHeader.VirtualAddress;
-		JMPTableMemory = listPeSection[importSectionIndex].data;
+		JMPTableMemory = listPeSection[importSectionIndex].data.get();
 	}
 
 	if (newIatInSection)
@@ -172,7 +173,7 @@ DWORD ImportRebuilder::fillImportSection(std::map<DWORD_PTR, ImportModuleThunk> 
 	size_t stringLength = 0;
 	DWORD_PTR lastRVA = 0;
 
-	BYTE * sectionData = listPeSection[importSectionIndex].data;
+	BYTE * sectionData = listPeSection[importSectionIndex].data.get();
 	DWORD offset = 0;
 	DWORD offsetOFTArray = 0;
 
@@ -286,7 +287,7 @@ size_t ImportRebuilder::addImportDescriptor(ImportModuleThunk * pImportModule, D
 		Warning: stringLength MUST include null termination char
 	*/
 
-	memcpy((listPeSection[importSectionIndex].data + sectionOffset), dllName, stringLength); //copy module name to section
+	memcpy((listPeSection[importSectionIndex].data.get() + sectionOffset), dllName, stringLength); //copy module name to section
 
 	pImportDescriptor->FirstThunk = (DWORD)pImportModule->firstThunk;
 	pImportDescriptor->Name = (DWORD)convertOffsetToRVAVector(listPeSection[importSectionIndex].sectionHeader.PointerToRawData + sectionOffset);
@@ -408,28 +409,34 @@ BYTE * ImportRebuilder::getMemoryPointerFromRVA(DWORD_PTR dwRVA)
 	DWORD rvaPointer = ((DWORD)dwRVA - listPeSection[peSectionIndex].sectionHeader.VirtualAddress);
 	DWORD minSectionSize = rvaPointer + (sizeof(DWORD_PTR) * 2); //add space for 1 IAT address
 
-	if (listPeSection[peSectionIndex].data == 0 || listPeSection[peSectionIndex].dataSize == 0)
+	if (listPeSection[peSectionIndex].data.get() == nullptr || listPeSection[peSectionIndex].dataSize == 0)
 	{
 		listPeSection[peSectionIndex].dataSize = minSectionSize; 
 		listPeSection[peSectionIndex].normalSize = minSectionSize;
-		listPeSection[peSectionIndex].data = new BYTE[listPeSection[peSectionIndex].dataSize];
+		//listPeSection[peSectionIndex].data = new BYTE[listPeSection[peSectionIndex].dataSize];
+    listPeSection[peSectionIndex].data = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(minSectionSize), std::default_delete<BYTE[]>());
 
 		listPeSection[peSectionIndex].sectionHeader.SizeOfRawData = listPeSection[peSectionIndex].dataSize;
 	}
 	else if(listPeSection[peSectionIndex].dataSize < minSectionSize)
 	{
-		BYTE * temp = new BYTE[minSectionSize];
+		/*BYTE * temp = new BYTE[minSectionSize];
 		memcpy(temp, listPeSection[peSectionIndex].data, listPeSection[peSectionIndex].dataSize);
 		delete [] listPeSection[peSectionIndex].data;
 
-		listPeSection[peSectionIndex].data = temp;
+		listPeSection[peSectionIndex].data = temp;*/
+
+    auto tmp = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(minSectionSize), std::default_delete<BYTE[]>());
+    std::memcpy(tmp.get(), listPeSection[peSectionIndex].data.get(), listPeSection[peSectionIndex].dataSize);
+
+    listPeSection[peSectionIndex].data = tmp;
 		listPeSection[peSectionIndex].dataSize = minSectionSize;
 		listPeSection[peSectionIndex].normalSize = minSectionSize;
 
 		listPeSection[peSectionIndex].sectionHeader.SizeOfRawData = listPeSection[peSectionIndex].dataSize;
 	}
 
-    return (BYTE *)((DWORD_PTR)listPeSection[peSectionIndex].data + rvaPointer);
+    return (BYTE *)((DWORD_PTR)listPeSection[peSectionIndex].data.get() + rvaPointer);
 }
 
 void ImportRebuilder::enableOFTSupport()

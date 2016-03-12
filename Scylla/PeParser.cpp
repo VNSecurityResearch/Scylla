@@ -87,7 +87,7 @@ PeParser::~PeParser()
 		}
 	}*/
 
-	listPeSection.clear();
+	//listPeSection.clear();
 }
 
 void PeParser::initClass()
@@ -148,7 +148,9 @@ bool PeParser::isTargetFileSamePeFormat()
 
 bool PeParser::isValidPeFile()
 {
-	bool retValue = false;
+  return (pDosHeader && (pDosHeader->e_magic == IMAGE_DOS_SIGNATURE) && pNTHeader32 && (pNTHeader32->Signature == IMAGE_NT_SIGNATURE));
+
+	/*bool retValue = false;
 
 	if (pDosHeader)
 	{
@@ -164,7 +166,7 @@ bool PeParser::isValidPeFile()
 		}
 	}
 
-	return retValue;
+	return retValue;*/
 }
 
 bool PeParser::hasDirectory(const int directoryIndex)
@@ -497,14 +499,21 @@ DWORD PeParser::getSectionHeaderBasedFileSize()
 	DWORD lastRawOffset = 0, lastRawSize = 0;
 
 	//this is needed if the sections aren't sorted by their RawOffset (e.g. Petite)
-	for (WORD i = 0; i < getNumberOfSections(); i++)
+	/*for (WORD i = 0; i < getNumberOfSections(); i++)
 	{
 		if ((listPeSection[i].sectionHeader.PointerToRawData + listPeSection[i].sectionHeader.SizeOfRawData) > (lastRawOffset + lastRawSize))
 		{
 			lastRawOffset = listPeSection[i].sectionHeader.PointerToRawData;
 			lastRawSize = listPeSection[i].sectionHeader.SizeOfRawData;
 		}
-	}
+	}*/
+
+  for (auto const &pe_section : listPeSection) {
+    if ((pe_section.sectionHeader.PointerToRawData + pe_section.sectionHeader.SizeOfRawData) > (lastRawOffset + lastRawSize)) {
+      lastRawOffset = pe_section.sectionHeader.PointerToRawData;
+      lastRawSize = pe_section.sectionHeader.SizeOfRawData;
+    }
+  }
 
 	return (lastRawSize + lastRawOffset);
 }
@@ -514,21 +523,32 @@ DWORD PeParser::getSectionHeaderBasedSizeOfImage()
 	DWORD lastVirtualOffset = 0, lastVirtualSize = 0;
 
 	//this is needed if the sections aren't sorted by their RawOffset (e.g. Petite)
-	for (WORD i = 0; i < getNumberOfSections(); i++)
+	/*for (WORD i = 0; i < getNumberOfSections(); i++)
 	{
 		if ((listPeSection[i].sectionHeader.VirtualAddress + listPeSection[i].sectionHeader.Misc.VirtualSize) > (lastVirtualOffset + lastVirtualSize))
 		{
 			lastVirtualOffset = listPeSection[i].sectionHeader.VirtualAddress;
 			lastVirtualSize = listPeSection[i].sectionHeader.Misc.VirtualSize;
 		}
-	}
+	}*/
+
+  for (auto const &pe_section : listPeSection) {
+    if ((pe_section.sectionHeader.VirtualAddress + pe_section.sectionHeader.Misc.VirtualSize) > (lastVirtualOffset + lastVirtualSize)) {
+      lastVirtualOffset = pe_section.sectionHeader.VirtualAddress;
+      lastVirtualSize = pe_section.sectionHeader.Misc.VirtualSize;
+    }
+  }
 
 	return (lastVirtualSize + lastVirtualOffset);
 }
 
 bool PeParser::openFileHandle()
 {
-	if (hFile == INVALID_HANDLE_VALUE)
+  if (hFile != INVALID_HANDLE_VALUE) return true;
+
+  hFile = filename ? CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0) : INVALID_HANDLE_VALUE;
+
+	/*if (hFile == INVALID_HANDLE_VALUE)
 	{
 		if (filename)
 		{
@@ -538,21 +558,24 @@ bool PeParser::openFileHandle()
 		{
 			hFile = INVALID_HANDLE_VALUE;
 		}
-	}
+	}*/
 
 	return (hFile != INVALID_HANDLE_VALUE);
 }
 
 bool PeParser::openWriteFileHandle( const WCHAR * newFile )
 {
-	if (newFile)
+  if (!newFile) return false;
+  hFile = CreateFile(newFile, GENERIC_WRITE, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+
+	/*if (newFile)
 	{
 		hFile = CreateFile(newFile, GENERIC_WRITE, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 	}
 	else
 	{
 		hFile = INVALID_HANDLE_VALUE;
-	}
+	}*/
 
 	return (hFile != INVALID_HANDLE_VALUE);
 }
@@ -560,11 +583,14 @@ bool PeParser::openWriteFileHandle( const WCHAR * newFile )
 
 void PeParser::closeFileHandle()
 {
-	if (hFile != INVALID_HANDLE_VALUE)
+  if (hFile != INVALID_HANDLE_VALUE) CloseHandle(hFile);
+  hFile = INVALID_HANDLE_VALUE;
+
+	/*if (hFile != INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(hFile);
 		hFile = INVALID_HANDLE_VALUE;
-	}
+	}*/
 }
 
 bool PeParser::readSectionFromProcess(const DWORD_PTR readOffset, PeFileSection & peFileSection)
@@ -910,7 +936,8 @@ bool PeParser::addNewLastSection(const CHAR * sectionName, DWORD sectionSize, BY
 	if (sectionData == 0)
 	{
 		//peFileSection.data = new BYTE[peFileSection.sectionHeader.SizeOfRawData];
-    peFileSection.data = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(peFileSection.sectionHeader.SizeOfRawData), std::default_delete<BYTE[]>());
+    peFileSection.data = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(peFileSection.sectionHeader.SizeOfRawData), 
+                                               std::default_delete<BYTE[]>());
 		ZeroMemory(peFileSection.data.get(), peFileSection.sectionHeader.SizeOfRawData);
 	}
 	else
@@ -940,52 +967,82 @@ DWORD_PTR PeParser::getStandardImagebase()
 
 int PeParser::convertRVAToOffsetVectorIndex(DWORD_PTR dwRVA)
 {
-	for (WORD i = 0; i < getNumberOfSections(); i++)
+	/*for (WORD i = 0; i < getNumberOfSections(); i++)
 	{
 		if ((listPeSection[i].sectionHeader.VirtualAddress <= dwRVA) && ((listPeSection[i].sectionHeader.VirtualAddress + listPeSection[i].sectionHeader.Misc.VirtualSize) > dwRVA))
 		{
 			return i;
 		}
-	}
+	}*/
+
+  auto i = WORD{ 0 };
+  for (auto const &pe_section : listPeSection) {
+    if ((pe_section.sectionHeader.VirtualAddress <= dwRVA) && 
+        ((pe_section.sectionHeader.VirtualAddress + pe_section.sectionHeader.Misc.VirtualSize) > dwRVA)) {
+      return i;
+    }
+    ++i;
+  }
 
 	return -1;
 }
 
 DWORD_PTR PeParser::convertRVAToOffsetVector(DWORD_PTR dwRVA)
 {
-	for (WORD i = 0; i < getNumberOfSections(); i++)
+	/*for (WORD i = 0; i < getNumberOfSections(); i++)
 	{
 		if ((listPeSection[i].sectionHeader.VirtualAddress <= dwRVA) && ((listPeSection[i].sectionHeader.VirtualAddress + listPeSection[i].sectionHeader.Misc.VirtualSize) > dwRVA))
 		{
 			return ((dwRVA - listPeSection[i].sectionHeader.VirtualAddress) + listPeSection[i].sectionHeader.PointerToRawData);
 		}
-	}
+	}*/
+
+  for (auto const & pe_section : listPeSection) {
+    if ((pe_section.sectionHeader.VirtualAddress <= dwRVA) &&
+       ((pe_section.sectionHeader.VirtualAddress + pe_section.sectionHeader.Misc.VirtualSize) > dwRVA)) {
+      return ((dwRVA - pe_section.sectionHeader.VirtualAddress) + pe_section.sectionHeader.PointerToRawData);
+    }
+  }
 
 	return 0;
 }
 
 DWORD_PTR PeParser::convertRVAToOffsetRelative(DWORD_PTR dwRVA)
 {
-	for (WORD i = 0; i < getNumberOfSections(); i++)
+	/*for (WORD i = 0; i < getNumberOfSections(); i++)
 	{
 		if ((listPeSection[i].sectionHeader.VirtualAddress <= dwRVA) && ((listPeSection[i].sectionHeader.VirtualAddress + listPeSection[i].sectionHeader.Misc.VirtualSize) > dwRVA))
 		{
 			return (dwRVA - listPeSection[i].sectionHeader.VirtualAddress);
 		}
-	}
+	}*/
+
+  for (auto const & pe_section : listPeSection) {
+    if ((pe_section.sectionHeader.VirtualAddress <= dwRVA) &&
+      ((pe_section.sectionHeader.VirtualAddress + pe_section.sectionHeader.Misc.VirtualSize) > dwRVA)) {
+      return (dwRVA - pe_section.sectionHeader.VirtualAddress);
+    }
+  }
 
 	return 0;
 }
 
 DWORD_PTR PeParser::convertOffsetToRVAVector(DWORD_PTR dwOffset)
 {
-	for (WORD i = 0; i < getNumberOfSections(); i++)
+	/*for (WORD i = 0; i < getNumberOfSections(); i++)
 	{
 		if ((listPeSection[i].sectionHeader.PointerToRawData <= dwOffset) && ((listPeSection[i].sectionHeader.PointerToRawData + listPeSection[i].sectionHeader.SizeOfRawData) > dwOffset))
 		{
 			return ((dwOffset - listPeSection[i].sectionHeader.PointerToRawData) + listPeSection[i].sectionHeader.VirtualAddress);
 		}
-	}
+	}*/
+
+  for (auto const & pe_section : listPeSection) {
+    if ((pe_section.sectionHeader.PointerToRawData <= dwOffset) && 
+        ((pe_section.sectionHeader.PointerToRawData + pe_section.sectionHeader.SizeOfRawData) > dwOffset)) {
+      return ((dwOffset - pe_section.sectionHeader.PointerToRawData) + pe_section.sectionHeader.VirtualAddress);
+    }
+  }
 
 	return 0;
 }
@@ -1142,7 +1199,20 @@ bool PeParser::dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR 
 {
 	moduleBaseAddress = modBase;
 
-	if (readPeSectionsFromProcess())
+  if (!readPeSectionsFromProcess()) return false;
+
+  setDefaultFileAlignment();
+
+  setEntryPointVa(entryPoint);
+
+  alignAllSectionHeaders();
+  fixPeHeader();
+
+  getFileOverlay();
+
+  return savePeFileToDisk(dumpFilePath);
+
+	/*if (readPeSectionsFromProcess())
 	{
 		setDefaultFileAlignment();
 
@@ -1156,7 +1226,7 @@ bool PeParser::dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR 
 		return savePeFileToDisk(dumpFilePath);
 	}
 	
-	return false;
+	return false;*/
 }
 
 bool PeParser::dumpProcess(DWORD_PTR modBase, DWORD_PTR entryPoint, const WCHAR * dumpFilePath, std::vector<PeSection> & sectionList)
