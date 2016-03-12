@@ -9,6 +9,7 @@
 #include "IATSearch.h"
 #include "ImportRebuilder.h"
 
+#include <algorithm>
 
 extern HINSTANCE hDllModule;
 
@@ -91,23 +92,28 @@ BOOL WINAPI ScyllaRebuildFileA(const char * fileToRebuild, BOOL removeDosStub, B
 	return ScyllaRebuildFileW(fileToRebuildW, removeDosStub, updatePeHeaderChecksum, createBackup);
 }
 
-BOOL WINAPI ScyllaDumpCurrentProcessW(const WCHAR * fileToDump, DWORD_PTR imagebase, DWORD_PTR entrypoint, const WCHAR * fileResult)
+BOOL WINAPI ScyllaDumpCurrentProcessW(const WCHAR * fileToDump, DWORD_PTR imagebase, 
+                                      DWORD_PTR entrypoint, const WCHAR * fileResult)
 {
 	ProcessAccessHelp::setCurrentProcessAsTarget();
 
 	return DumpProcessW(fileToDump, imagebase, entrypoint, fileResult);
 }
 
-BOOL WINAPI ScyllaDumpProcessW(DWORD_PTR pid, const WCHAR * fileToDump, DWORD_PTR imagebase, DWORD_PTR entrypoint, const WCHAR * fileResult)
+BOOL WINAPI ScyllaDumpProcessW(DWORD_PTR pid, const WCHAR * fileToDump, DWORD_PTR imagebase, 
+                               DWORD_PTR entrypoint, const WCHAR * fileResult)
 {
-	if (ProcessAccessHelp::openProcessHandle((DWORD)pid))
+  return ProcessAccessHelp::openProcessHandle((DWORD)pid) ? 
+         DumpProcessW(fileToDump, imagebase, entrypoint, fileResult) : FALSE;
+
+	/*if (ProcessAccessHelp::openProcessHandle((DWORD)pid))
 	{
 		return DumpProcessW(fileToDump, imagebase, entrypoint, fileResult);
 	}
 	else
 	{
 		return FALSE;
-	}	
+	}*/	
 }
 
 BOOL WINAPI ScyllaDumpCurrentProcessA(const char * fileToDump, DWORD_PTR imagebase, DWORD_PTR entrypoint, const char * fileResult)
@@ -140,7 +146,8 @@ BOOL WINAPI ScyllaDumpCurrentProcessA(const char * fileToDump, DWORD_PTR imageba
 	}
 }
 
-BOOL WINAPI ScyllaDumpProcessA(DWORD_PTR pid, const char * fileToDump, DWORD_PTR imagebase, DWORD_PTR entrypoint, const char * fileResult)
+BOOL WINAPI ScyllaDumpProcessA(DWORD_PTR pid, const char * fileToDump, DWORD_PTR imagebase, 
+                               DWORD_PTR entrypoint, const char * fileResult)
 {
 	WCHAR fileToDumpW[MAX_PATH];
 	WCHAR fileResultW[MAX_PATH];
@@ -187,17 +194,35 @@ int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatS
 	Process *processPtr = 0;
 	IATSearch iatSearch;
 
-	std::vector<Process>& processList = processLister.getProcessListSnapshotNative();
-	for(std::vector<Process>::iterator it = processList.begin(); it != processList.end(); ++it)
+	//std::vector<Process>& processList = processLister.getProcessListSnapshotNative();
+  auto processList = std::move(processLister.getProcessListSnapshotNative());
+	/*for(std::vector<Process>::iterator it = processList.begin(); it != processList.end(); ++it)
 	{
 		if(it->PID == dwProcessId)
 		{
 			processPtr = &(*it);
 			break;
 		}
-	}
+	}*/
+  
+  auto proc_with_id = std::find_if(std::begin(processList), std::end(processList), [&dwProcessId](const Process & proc) 
+  {
+    return (proc.PID == dwProcessId);
+  });
+  if (proc_with_id == std::end(processList)) return SCY_ERROR_PIDNOTFOUND;;
 
-	if(!processPtr) return SCY_ERROR_PIDNOTFOUND;
+  ProcessAccessHelp::closeProcessHandle();
+  apiReader.clearAll();
+
+  if (!ProcessAccessHelp::openProcessHandle(proc_with_id->PID)) return SCY_ERROR_PROCOPEN;
+
+  ProcessAccessHelp::getProcessModules(ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList);
+
+  ProcessAccessHelp::selectedModule = 0;
+  ProcessAccessHelp::targetImageBase = proc_with_id->imageBase;
+  ProcessAccessHelp::targetSizeOfImage = proc_with_id->imageSize;
+
+	/*if(!processPtr) return SCY_ERROR_PIDNOTFOUND;
 
 	ProcessAccessHelp::closeProcessHandle();
 	apiReader.clearAll();
@@ -205,13 +230,13 @@ int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatS
 	if (!ProcessAccessHelp::openProcessHandle(processPtr->PID))
 	{
 		return SCY_ERROR_PROCOPEN;
-	}
+	}*/
 
-	ProcessAccessHelp::getProcessModules(ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList);
+	/*ProcessAccessHelp::getProcessModules(ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList);
 
 	ProcessAccessHelp::selectedModule = 0;
 	ProcessAccessHelp::targetImageBase = processPtr->imageBase;
-	ProcessAccessHelp::targetSizeOfImage = processPtr->imageSize;
+	ProcessAccessHelp::targetSizeOfImage = processPtr->imageSize;*/
 
 	apiReader.readApisFromModuleList();
 
@@ -232,7 +257,7 @@ int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatS
 		}
 	}
 
-	processList.clear();
+	//processList.clear();
 	ProcessAccessHelp::closeProcessHandle();
 	apiReader.clearAll();
 
@@ -240,7 +265,8 @@ int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatS
 }
 
 
-int WINAPI ScyllaIatFixAutoW(DWORD_PTR iatAddr, DWORD iatSize, DWORD dwProcessId, const WCHAR * dumpFile, const WCHAR * iatFixFile)
+int WINAPI ScyllaIatFixAutoW(DWORD_PTR iatAddr, DWORD iatSize, DWORD dwProcessId, 
+                             const WCHAR * dumpFile, const WCHAR * iatFixFile)
 {
 	ApiReader apiReader;
 	ProcessLister processLister;
