@@ -5,12 +5,13 @@
 #include "ProcessAccessHelp.h"
 
 #include <algorithm>
+#include <tuple>
 
 //#define DEBUG_COMMENTS
 
 def_IsWow64Process ProcessLister::_IsWow64Process = 0;
 
-std::vector<Process>& ProcessLister::getProcessList()
+auto ProcessLister::getProcessList () const -> const std::vector<Process>&
 {
 	return processList;
 }
@@ -156,98 +157,107 @@ bool ProcessLister::getAbsoluteFilePath(HANDLE hProcess, Process * process)
 	return retVal;
 }
 
-std::vector<Process>& ProcessLister::getProcessListSnapshotNative()
+auto ProcessLister::getProcessListSnapshotNative () -> const std::vector<Process>&
 {
-    ULONG retLength = 0;
-    ULONG bufferLength = 1;
-    PSYSTEM_PROCESS_INFORMATION pBuffer = (PSYSTEM_PROCESS_INFORMATION)malloc(bufferLength);
-    PSYSTEM_PROCESS_INFORMATION pIter;
-    if (!processList.empty())
-    {
-        //clear elements, but keep reversed memory
-        processList.clear();
-    }
-    else
-    {
-        //first time, reserve memory
-        processList.reserve(34);
-    }
+  ULONG retLength = 0;
+  ULONG bufferLength = 1;
+  PSYSTEM_PROCESS_INFORMATION pBuffer = (PSYSTEM_PROCESS_INFORMATION)malloc(bufferLength);
+  PSYSTEM_PROCESS_INFORMATION pIter;
 
-    if (NativeWinApi::NtQuerySystemInformation(SystemProcessInformation, pBuffer, bufferLength, &retLength) == STATUS_INFO_LENGTH_MISMATCH)
-    {
-        free(pBuffer);
-        bufferLength = retLength + sizeof(SYSTEM_PROCESS_INFORMATION);
-        pBuffer = (PSYSTEM_PROCESS_INFORMATION)malloc(bufferLength);
-        if (!pBuffer)
-            return processList;
+  /*
+   * if it is the first time to get process list, then reverse some memory
+   * else clear old process list (but keep allocated memory)
+   */
+  processList.empty() ? processList.reserve(34) : processList.clear();
+    
+  //if (!processList.empty())
+  //{
+  //  //clear elements, but keep reversed memory
+  //  processList.clear();
+  //}
+  //else
+  //{
+  //  //first time, reserve memory
+  //  processList.reserve(34);
+  //}
 
-        if (NativeWinApi::NtQuerySystemInformation(SystemProcessInformation, pBuffer, bufferLength, &retLength) != STATUS_SUCCESS)
-        {
-            return processList;
-        }
-    }
-    else
-    {
-        return processList;
-    }
-
-    pIter = pBuffer;
-
-    while(TRUE)
-    {
-        if (pIter->UniqueProcessId > (HANDLE)4) //small filter
-        {
-            handleProcessInformationAndAddToList(pIter);
-        }
-
-        if (pIter->NextEntryOffset == 0)
-        {
-            break;
-        }
-        else
-        {
-            pIter = (PSYSTEM_PROCESS_INFORMATION)((DWORD_PTR)pIter + (DWORD_PTR)pIter->NextEntryOffset);
-        }
-    }
-
-    std::reverse(processList.begin(), processList.end()); //reverse process list
-
+  if (NativeWinApi::NtQuerySystemInformation(SystemProcessInformation, 
+                                             pBuffer, bufferLength, &retLength) == STATUS_INFO_LENGTH_MISMATCH)
+  {
     free(pBuffer);
+    bufferLength = retLength + sizeof(SYSTEM_PROCESS_INFORMATION);
+    pBuffer = (PSYSTEM_PROCESS_INFORMATION)malloc(bufferLength);
+    if (!pBuffer)
+        return processList;
+
+    if (NativeWinApi::NtQuerySystemInformation(SystemProcessInformation, 
+                                               pBuffer, bufferLength, &retLength) != STATUS_SUCCESS)
+    {
+      return processList;
+    }
+  }
+  else
+  {
     return processList;
+  }
+
+  pIter = pBuffer;
+
+  while(TRUE)
+  {
+      if (pIter->UniqueProcessId > (HANDLE)4) //small filter
+      {
+          handleProcessInformationAndAddToList(pIter);
+      }
+
+      if (pIter->NextEntryOffset == 0)
+      {
+          break;
+      }
+      else
+      {
+          pIter = (PSYSTEM_PROCESS_INFORMATION)((DWORD_PTR)pIter + (DWORD_PTR)pIter->NextEntryOffset);
+      }
+  }
+
+  std::reverse(processList.begin(), processList.end()); //reverse process list
+
+  free(pBuffer);
+  return processList;
 }
 
 void ProcessLister::handleProcessInformationAndAddToList( PSYSTEM_PROCESS_INFORMATION pProcess )
 {
-    Process process;
-    WCHAR tempProcessName[MAX_PATH*2] = {0};
+  Process process;
+  WCHAR tempProcessName[MAX_PATH*2] = {0};
 
-    process.PID = (DWORD)pProcess->UniqueProcessId;
+  process.PID = (DWORD)pProcess->UniqueProcessId;
 
-    HANDLE hProcess = ProcessAccessHelp::NativeOpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, process.PID);
+  HANDLE hProcess = ProcessAccessHelp::NativeOpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ, process.PID);
 
-    if (hProcess)
-    {
-        ProcessType processType = checkIsProcess64(hProcess);
+  if (hProcess)
+  {
+    ProcessType processType = checkIsProcess64(hProcess);
 
 #ifdef _WIN64
-        if (processType == PROCESS_64)
+    if (processType == PROCESS_64)
 #else
-        if (processType == PROCESS_32)
+    if (processType == PROCESS_32)
 #endif
-        {
-            process.sessionId = pProcess->SessionId;
+    {
+      process.sessionId = pProcess->SessionId;
 
-            memcpy(tempProcessName, pProcess->ImageName.Buffer, pProcess->ImageName.Length);
-            wcscpy_s(process.filename, tempProcessName);
+      memcpy(tempProcessName, pProcess->ImageName.Buffer, pProcess->ImageName.Length);
+      wcscpy_s(process.filename, tempProcessName);
 
-            getAbsoluteFilePath(hProcess, &process);
-            process.pebAddress = getPebAddressFromProcess(hProcess);
-            getProcessImageInformation(hProcess, &process);
+      getAbsoluteFilePath(hProcess, &process);
+      process.pebAddress = getPebAddressFromProcess(hProcess);
+      getProcessImageInformation(hProcess, &process);
 
-            processList.push_back(process);
-        }
-        CloseHandle(hProcess);
+      processList.push_back(process);
     }
+    CloseHandle(hProcess);
+  }
 }
 
 void ProcessLister::getProcessImageInformation( HANDLE hProcess, Process* process )
@@ -270,26 +280,30 @@ void ProcessLister::getProcessImageInformation( HANDLE hProcess, Process* proces
 
 DWORD_PTR ProcessLister::getPebAddressFromProcess( HANDLE hProcess )
 {
-    if (hProcess)
+  if (hProcess)
+  {
+    ULONG RequiredLen = 0;
+    void * PebAddress = 0;
+    PROCESS_BASIC_INFORMATION myProcessBasicInformation[5] = {0};
+
+    if(NativeWinApi::NtQueryInformationProcess(hProcess, ProcessBasicInformation, 
+                                               myProcessBasicInformation, sizeof(PROCESS_BASIC_INFORMATION), 
+                                               &RequiredLen) == STATUS_SUCCESS)
     {
-        ULONG RequiredLen = 0;
-        void * PebAddress = 0;
-        PROCESS_BASIC_INFORMATION myProcessBasicInformation[5] = {0};
-
-        if(NativeWinApi::NtQueryInformationProcess(hProcess, ProcessBasicInformation, myProcessBasicInformation, sizeof(PROCESS_BASIC_INFORMATION), &RequiredLen) == STATUS_SUCCESS)
-        {
-            PebAddress = (void*)myProcessBasicInformation->PebBaseAddress;
-        }
-        else
-        {
-            if(NativeWinApi::NtQueryInformationProcess(hProcess, ProcessBasicInformation, myProcessBasicInformation, RequiredLen, &RequiredLen) == STATUS_SUCCESS)
-            {
-                PebAddress = (void*)myProcessBasicInformation->PebBaseAddress;
-            }
-        }
-
-        return (DWORD_PTR)PebAddress;
+      PebAddress = (void*)myProcessBasicInformation->PebBaseAddress;
+    }
+    else
+    {
+      if(NativeWinApi::NtQueryInformationProcess(hProcess, ProcessBasicInformation, 
+                                                  myProcessBasicInformation, RequiredLen, 
+                                                  &RequiredLen) == STATUS_SUCCESS)
+      {
+        PebAddress = (void*)myProcessBasicInformation->PebBaseAddress;
+      }
     }
 
-    return 0;
+    return (DWORD_PTR)PebAddress;
+  }
+
+  return 0;
 }

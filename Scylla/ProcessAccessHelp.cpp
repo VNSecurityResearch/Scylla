@@ -29,43 +29,76 @@ BYTE ProcessAccessHelp::fileHeaderFromDisk[PE_HEADER_BYTES_COUNT];
 
 bool ProcessAccessHelp::openProcessHandle(DWORD dwPID)
 {
-	if (dwPID > 0)
-	{
-		if (hProcess)
-		{
+  if (dwPID <= 0) {
 #ifdef DEBUG_COMMENTS
-			Scylla::debugLog.log(L"openProcessHandle :: There is already a process handle, HANDLE %X", hProcess);
+    Scylla::debugLog.log(L"openProcessHandle :: Wrong PID, PID %X", dwPID);
 #endif
-			return false;
-		}
-		else
-		{
-			//hProcess = OpenProcess(PROCESS_CREATE_THREAD|PROCESS_VM_OPERATION|PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_VM_WRITE, 0, dwPID);
-			//if (!NT_SUCCESS(NativeWinApi::NtOpenProcess(&hProcess,PROCESS_CREATE_THREAD|PROCESS_VM_OPERATION|PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_VM_WRITE,&ObjectAttributes, &cid)))
+    return false;
+  }
 
-			hProcess = NativeOpenProcess(PROCESS_CREATE_THREAD|PROCESS_VM_OPERATION|PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_VM_WRITE|PROCESS_SUSPEND_RESUME|PROCESS_TERMINATE, dwPID);
+  if (hProcess) {
+#ifdef DEBUG_COMMENTS
+    Scylla::debugLog.log(L"openProcessHandle :: There is already a process handle, HANDLE %X", hProcess);
+#endif
+    return false;
+  }
 
-			if (hProcess)
-			{
-				return true;
-			}
-			else
-			{
+  hProcess = NativeOpenProcess(PROCESS_CREATE_THREAD | PROCESS_VM_OPERATION |
+                               PROCESS_QUERY_INFORMATION | PROCESS_VM_READ |
+                               PROCESS_VM_WRITE | PROCESS_SUSPEND_RESUME | PROCESS_TERMINATE, dwPID);
+  if (hProcess) return true;
+
 #ifdef DEBUG_COMMENTS
-				Scylla::debugLog.log(L"openProcessHandle :: Failed to open handle, PID %X", dwPID);
+  Scylla::debugLog.log(L"openProcessHandle :: Failed to open handle, PID %X", dwPID);
 #endif
-				return false;
-			}
-		}
-	}
-	else
-	{
-#ifdef DEBUG_COMMENTS
-		Scylla::debugLog.log(L"openProcessHandle :: Wrong PID, PID %X", dwPID);
-#endif
-		return false;
-	}
-	
+  return false;
+  
+
+//	if (dwPID > 0)
+//	{
+//		if (hProcess)
+//		{
+//#ifdef DEBUG_COMMENTS
+//			Scylla::debugLog.log(L"openProcessHandle :: There is already a process handle, HANDLE %X", hProcess);
+//#endif
+//			return false;
+//		}
+//		else
+//		{
+//			//hProcess = OpenProcess(PROCESS_CREATE_THREAD|PROCESS_VM_OPERATION|PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_VM_WRITE, 0, dwPID);
+//			//if (!NT_SUCCESS(NativeWinApi::NtOpenProcess(&hProcess,PROCESS_CREATE_THREAD|PROCESS_VM_OPERATION|PROCESS_QUERY_INFORMATION|PROCESS_VM_READ|PROCESS_VM_WRITE,&ObjectAttributes, &cid)))
+//
+//			hProcess = NativeOpenProcess(PROCESS_CREATE_THREAD | PROCESS_VM_OPERATION | 
+//                                   PROCESS_QUERY_INFORMATION |PROCESS_VM_READ | 
+//                                   PROCESS_VM_WRITE | PROCESS_SUSPEND_RESUME | PROCESS_TERMINATE, dwPID);
+//
+//      if (hProcess) return true;
+//
+//#ifdef DEBUG_COMMENTS
+//      Scylla::debugLog.log(L"openProcessHandle :: Failed to open handle, PID %X", dwPID);
+//#endif
+//      return false;
+//
+//			/*if (hProcess)
+//			{
+//				return true;
+//			}
+//			else
+//			{
+//#ifdef DEBUG_COMMENTS
+//				Scylla::debugLog.log(L"openProcessHandle :: Failed to open handle, PID %X", dwPID);
+//#endif
+//				return false;
+//			}*/
+//		}
+//	}
+//	else
+//	{
+//#ifdef DEBUG_COMMENTS
+//		Scylla::debugLog.log(L"openProcessHandle :: Wrong PID, PID %X", dwPID);
+//#endif
+//		return false;
+//	}
 }
 
 HANDLE ProcessAccessHelp::NativeOpenProcess(DWORD dwDesiredAccess, DWORD dwProcessId)
@@ -78,9 +111,17 @@ HANDLE ProcessAccessHelp::NativeOpenProcess(DWORD dwDesiredAccess, DWORD dwProce
 	InitializeObjectAttributes(&ObjectAttributes, 0, 0, 0, 0);
 	cid.UniqueProcess = (HANDLE)dwProcessId;
 
-	ntStatus = NativeWinApi::NtOpenProcess(&hProcess,dwDesiredAccess,&ObjectAttributes, &cid);
+	ntStatus = NativeWinApi::NtOpenProcess(&hProcess, dwDesiredAccess, &ObjectAttributes, &cid);
 
-	if (NT_SUCCESS(ntStatus))
+  if (NT_SUCCESS(ntStatus)) return hProcess;
+
+#ifdef DEBUG_COMMENTS
+  Scylla::debugLog.log(L"NativeOpenProcess :: Failed to open handle, PID %X Error 0x%X", 
+                       dwProcessId, NativeWinApi::RtlNtStatusToDosError(ntStatus));
+#endif
+  return 0;
+
+	/*if (NT_SUCCESS(ntStatus))
 	{
 		return hProcess;
 	}
@@ -90,7 +131,7 @@ HANDLE ProcessAccessHelp::NativeOpenProcess(DWORD dwDesiredAccess, DWORD dwProce
 		Scylla::debugLog.log(L"NativeOpenProcess :: Failed to open handle, PID %X Error 0x%X", dwProcessId, NativeWinApi::RtlNtStatusToDosError(ntStatus));
 #endif
 		return 0;
-	}
+	}*/
 }
 
 void ProcessAccessHelp::closeProcessHandle()
@@ -187,8 +228,7 @@ bool ProcessAccessHelp::writeMemoryToProcess(DWORD_PTR address, SIZE_T size, LPV
 		return false;
 	}
 
-
-	return (WriteProcessMemory(hProcess,(LPVOID)address, dataBuffer, size,&lpNumberOfBytesWritten) != FALSE);
+	return (WriteProcessMemory(hProcess,(LPVOID)address, dataBuffer, size, &lpNumberOfBytesWritten) != FALSE);
 }
 
 bool ProcessAccessHelp::readMemoryFromProcess(DWORD_PTR address, SIZE_T size, LPVOID dataBuffer)

@@ -70,7 +70,8 @@ BOOL MainGui::PreTranslateMessage(MSG* pMsg)
 void MainGui::InitDllStartWithPreSelect( PGUI_DLL_PARAMETER guiParam )
 {
 	ComboProcessList.ResetContent();
-	std::vector<Process>& processList = Scylla::processLister.getProcessListSnapshotNative();
+	//std::vector<Process>& processList = Scylla::processLister.getProcessListSnapshotNative();
+  auto processList = Scylla::processLister.getProcessListSnapshotNative();
 	int newSel = -1;
 	for (size_t i = 0; i < processList.size(); i++)
 	{
@@ -594,7 +595,9 @@ void MainGui::startDisassemblerGui(CTreeItem selectedTreeNode)
 
 void MainGui::processSelectedActionHandler(int index)
 {
-	std::vector<Process>& processList = Scylla::processLister.getProcessList();
+	//std::vector<Process>& processList = Scylla::processLister.getProcessList();
+
+  auto processList = Scylla::processLister.getProcessList();
 	Process &process = processList.at(index);
 	selectedProcess = 0;
 
@@ -647,13 +650,20 @@ void MainGui::fillProcessListComboBox(CComboBox& hCombo)
 {
 	hCombo.ResetContent();
 
-	std::vector<Process>& processList = Scylla::processLister.getProcessListSnapshotNative();
+	//std::vector<Process>& processList = Scylla::processLister.getProcessListSnapshotNative();
+  auto processList = Scylla::processLister.getProcessListSnapshotNative();
 
-	for (size_t i = 0; i < processList.size(); i++)
+  for (auto const &process : processList) {
+    swprintf_s(stringBuffer, L"%04d - %s - %s", process.PID, process.filename, process.fullPath);
+    hCombo.AddString(stringBuffer);
+  }
+
+	/*for (size_t i = 0; i < processList.size(); i++)
 	{
 		swprintf_s(stringBuffer, L"%04d - %s - %s", processList[i].PID, processList[i].filename, processList[i].fullPath);
 		hCombo.AddString(stringBuffer);
-	}
+	}*/
+  return;
 }
 
 /*

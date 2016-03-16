@@ -116,12 +116,23 @@ BOOL WINAPI ScyllaDumpProcessW(DWORD_PTR pid, const WCHAR * fileToDump, DWORD_PT
 	}*/	
 }
 
-BOOL WINAPI ScyllaDumpCurrentProcessA(const char * fileToDump, DWORD_PTR imagebase, DWORD_PTR entrypoint, const char * fileResult)
+BOOL WINAPI ScyllaDumpCurrentProcessA(const char * fileToDump, DWORD_PTR imagebase, 
+                                      DWORD_PTR entrypoint, const char * fileResult)
 {
 	WCHAR fileToDumpW[MAX_PATH];
 	WCHAR fileResultW[MAX_PATH];
 
-	if (fileResult == 0)
+  if (fileResult == nullptr) return FALSE;
+  
+  if (MultiByteToWideChar(CP_ACP, 0, fileResult, -1, fileResultW, _countof(fileResultW)) == 0) return FALSE;
+  
+  if (fileToDump != nullptr) {
+    if (MultiByteToWideChar(CP_ACP, 0, fileToDump, -1, fileToDumpW, _countof(fileToDumpW)) == 0) return FALSE;
+    return ScyllaDumpCurrentProcessW(fileToDumpW, imagebase, entrypoint, fileResultW);
+  }
+  else return ScyllaDumpCurrentProcessW(0, imagebase, entrypoint, fileResultW);
+
+	/*if (fileResult == 0)
 	{
 		return FALSE;
 	}
@@ -143,7 +154,7 @@ BOOL WINAPI ScyllaDumpCurrentProcessA(const char * fileToDump, DWORD_PTR imageba
 	else
 	{
 		return ScyllaDumpCurrentProcessW(0, imagebase, entrypoint, fileResultW);
-	}
+	}*/
 }
 
 BOOL WINAPI ScyllaDumpProcessA(DWORD_PTR pid, const char * fileToDump, DWORD_PTR imagebase, 
@@ -187,7 +198,8 @@ INT WINAPI ScyllaStartGui(DWORD dwProcessId, HINSTANCE mod, DWORD_PTR entrypoint
 	return InitializeGui(hDllModule, (LPARAM)&guiParam);
 }
 
-int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatSize, DWORD_PTR searchStart, BOOL advancedSearch)
+int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatSize, 
+                           DWORD_PTR searchStart, BOOL advancedSearch)
 {
 	ApiReader apiReader;
 	ProcessLister processLister;
@@ -195,7 +207,7 @@ int WINAPI ScyllaIatSearch(DWORD dwProcessId, DWORD_PTR * iatStart, DWORD * iatS
 	IATSearch iatSearch;
 
 	//std::vector<Process>& processList = processLister.getProcessListSnapshotNative();
-  auto processList = std::move(processLister.getProcessListSnapshotNative());
+  auto processList = processLister.getProcessListSnapshotNative();
 	/*for(std::vector<Process>::iterator it = processList.begin(); it != processList.end(); ++it)
 	{
 		if(it->PID == dwProcessId)
@@ -273,7 +285,8 @@ int WINAPI ScyllaIatFixAutoW(DWORD_PTR iatAddr, DWORD iatSize, DWORD dwProcessId
 	Process *processPtr = 0;
 	std::map<DWORD_PTR, ImportModuleThunk> moduleList;
 
-	std::vector<Process>& processList = processLister.getProcessListSnapshotNative();
+	//std::vector<Process>& processList = processLister.getProcessListSnapshotNative();
+  auto processList = processLister.getProcessListSnapshotNative();
 	for(std::vector<Process>::iterator it = processList.begin(); it != processList.end(); ++it)
 	{
 		if(it->PID == dwProcessId)
