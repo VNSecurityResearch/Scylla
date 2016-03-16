@@ -106,6 +106,7 @@ public:
 	//distorm :: Decoded instruction information.
 	static _DecodedInst decodedInstructions[MAX_INSTRUCTIONS];
 	static unsigned int decodedInstructionsCount;
+
 #ifdef _WIN64
 	static const _DecodeType dt = Decode64Bits;
 #else
@@ -224,7 +225,7 @@ public:
 	static bool suspendProcess();
 	static bool resumeProcess();
 	static bool terminateProcess();
-    static bool isPageExecutable( DWORD Protect );
+  static bool isPageExecutable( DWORD Protect );
 	static bool isPageAccessable( DWORD Protect );
-    static SIZE_T getSizeOfImageProcessNative( HANDLE processHandle, DWORD_PTR moduleBase );
+  static SIZE_T getSizeOfImageProcessNative( HANDLE processHandle, DWORD_PTR moduleBase );
 };

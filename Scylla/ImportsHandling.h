@@ -39,7 +39,8 @@ public:
 
 	bool invalidateImport(CTreeItem item);
 	bool invalidateModule(CTreeItem item);
-	bool setImport(CTreeItem item, const WCHAR * moduleName, const CHAR * apiName, WORD ordinal = 0, WORD hint = 0, bool valid = true, bool suspect = false);
+	bool setImport(CTreeItem item, const WCHAR * moduleName, const CHAR * apiName, 
+                 WORD ordinal = 0, WORD hint = 0, bool valid = true, bool suspect = false);
 	bool cutImport(CTreeItem item);
 	bool cutModule(CTreeItem item);
 	//bool addImport(const WCHAR * moduleName, const CHAR * name, DWORD_PTR va, DWORD_PTR rva, WORD ordinal = 0, bool valid = true, bool suspect = false);

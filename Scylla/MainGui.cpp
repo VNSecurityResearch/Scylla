@@ -691,40 +691,43 @@ bool MainGui::saveLogToFile(const WCHAR * file)
 	bool success = true;
 
 	HANDLE hFile = CreateFile(file, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-	if(hFile != INVALID_HANDLE_VALUE)
-	{
+	if(hFile != INVALID_HANDLE_VALUE) {
 		ProcessAccessHelp::writeMemoryToFileEnd(hFile, sizeof(BOM), BOM);
 
-		WCHAR * buffer = 0;
+		//WCHAR * buffer = 0;
+    auto buffer = std::shared_ptr<WCHAR>(nullptr, std::default_delete<WCHAR[]>());
 		size_t bufsize = 0;
-		for(int i = 0; i < ListLog.GetCount(); i++)
-		{
+
+		for(int i = 0; i < ListLog.GetCount(); i++) {
 			size_t size = ListLog.GetTextLen(i);
-			size += _countof(newLine)-1;
+			size += _countof(newLine) - 1;
 			if(size+1 > bufsize)
 			{
-				bufsize = size+1;
-				delete[] buffer;
+				bufsize = size + 1;
+				//delete[] buffer;
 				try
 				{
-					buffer = new WCHAR[bufsize];
+					//buffer = new WCHAR[bufsize];
+          buffer = std::shared_ptr<WCHAR>(std::allocator<WCHAR>().allocate(bufsize), 
+                                          std::default_delete<WCHAR[]>());
 				}
 				catch(std::bad_alloc&)
 				{
-					buffer = 0;
+					//buffer = 0;
 					success = false;
 					break;
 				}
 			}
 
-			ListLog.GetText(i, buffer);
-			wcscat_s(buffer, bufsize, newLine);
+			ListLog.GetText(i, buffer.get());
+			wcscat_s(buffer.get(), bufsize, newLine);
 
-			ProcessAccessHelp::writeMemoryToFileEnd(hFile, (DWORD)(size * sizeof(WCHAR)), buffer);
+			ProcessAccessHelp::writeMemoryToFileEnd(hFile, (DWORD)(size * sizeof(WCHAR)), buffer.get());
 		}
-		delete[] buffer;
+		//delete[] buffer;
 		CloseHandle(hFile);
 	}
+  
 	return success;
 }
 
@@ -1031,7 +1034,9 @@ void MainGui::DisplayContextMenuImports(CWindow hwnd, CPoint pt)
 	BOOL menuItem = hSub.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, hwnd);
 	if (menuItem)
 	{
-		if ((menuItem >= PLUGIN_MENU_BASE_ID) && (menuItem <= (int)(Scylla::plugins.getScyllaPluginList().size() + Scylla::plugins.getImprecPluginList().size() + PLUGIN_MENU_BASE_ID)))
+		if ((menuItem >= PLUGIN_MENU_BASE_ID) && 
+        (menuItem <= (int)(Scylla::plugins.getScyllaPluginList().size() + 
+                           Scylla::plugins.getImprecPluginList().size() + PLUGIN_MENU_BASE_ID)))
 		{
 			//wsprintf(stringBuffer, L"%d %s\n",menuItem,pluginList[menuItem - PLUGIN_MENU_BASE_ID].pluginName);
 			//MessageBox(stringBuffer, L"plugin selection");
@@ -1047,18 +1052,23 @@ void MainGui::DisplayContextMenuImports(CWindow hwnd, CPoint pt)
 			else
 				importsHandling.invalidateImport(over);
 			break;
+
 		case ID__DISASSEMBLE:
 			startDisassemblerGui(over);
 			break;
+
 		case ID__EXPANDALLNODES:
 			importsHandling.expandAllTreeNodes();
 			break;
+
 		case ID__COLLAPSEALLNODES:
 			importsHandling.collapseAllTreeNodes();
 			break;
+
 		case ID__CUTTHUNK:
 			importsHandling.cutImport(over);
 			break;
+
 		case ID__DELETETREENODE:
 			importsHandling.cutModule(importsHandling.isImport(over) ? over.GetParent() : over);
 			break;
@@ -1086,11 +1096,13 @@ void MainGui::DisplayContextMenuLog(CWindow hwnd, CPoint pt)
 		case ID__SAVE:
 			WCHAR selectedFilePath[MAX_PATH];
 			getCurrentModulePath(stringBuffer, _countof(stringBuffer));
+
 			if(showFileDialog(selectedFilePath, true, NULL, filterTxt, L"txt", stringBuffer))
 			{
 				saveLogToFile(selectedFilePath);
 			}
 			break;
+
 		case ID__CLEAR:
 			clearOutputLog();
 			break;
@@ -1140,9 +1152,13 @@ void MainGui::dumpMemoryActionHandler()
 	if(dlgDumpMemory.DoModal())
 	{
 		getCurrentModulePath(stringBuffer, _countof(stringBuffer));
-		if(showFileDialog(selectedFilePath, true, dlgDumpMemory.dumpFilename, filterMem, L"mem", stringBuffer))
+
+		if(showFileDialog(selectedFilePath, true, dlgDumpMemory.dumpFilename, 
+                      filterMem, L"mem", stringBuffer))
 		{
-			if (ProcessAccessHelp::writeMemoryToNewFile(selectedFilePath,dlgDumpMemory.dumpedMemorySize,dlgDumpMemory.dumpedMemory))
+			if (ProcessAccessHelp::writeMemoryToNewFile(selectedFilePath, 
+                                                  dlgDumpMemory.dumpedMemorySize, 
+                                                  dlgDumpMemory.dumpedMemory))
 			{
 				Scylla::windowLog.log(L"Memory dump saved %s", selectedFilePath);
 			}

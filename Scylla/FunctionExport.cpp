@@ -296,21 +296,31 @@ int WINAPI ScyllaIatFixAutoW(DWORD_PTR iatAddr, DWORD iatSize, DWORD dwProcessId
 		}
 	}
 
-	if(!processPtr) return SCY_ERROR_PIDNOTFOUND;
+  auto process_of_id = std::find_if(std::begin(processList), std::end(processList), [&dwProcessId](Process const &process) 
+  {
+    return (process.PID == dwProcessId);
+  });
+  if (process_of_id == std::end(processList)) return SCY_ERROR_PIDNOTFOUND;
+
+	//if(!processPtr) return SCY_ERROR_PIDNOTFOUND;
 
 	ProcessAccessHelp::closeProcessHandle();
 	apiReader.clearAll();
 
-	if (!ProcessAccessHelp::openProcessHandle(processPtr->PID))
+  if (!ProcessAccessHelp::openProcessHandle(process_of_id->PID)) return SCY_ERROR_PROCOPEN;
+
+	/*if (!ProcessAccessHelp::openProcessHandle(processPtr->PID))
 	{
 		return SCY_ERROR_PROCOPEN;
-	}
+	}*/
 
 	ProcessAccessHelp::getProcessModules(ProcessAccessHelp::hProcess, ProcessAccessHelp::moduleList);
 
 	ProcessAccessHelp::selectedModule = 0;
-	ProcessAccessHelp::targetImageBase = processPtr->imageBase;
-	ProcessAccessHelp::targetSizeOfImage = processPtr->imageSize;
+	/*ProcessAccessHelp::targetImageBase = processPtr->imageBase;
+	ProcessAccessHelp::targetSizeOfImage = processPtr->imageSize;*/
+  ProcessAccessHelp::targetImageBase = process_of_id->imageBase;
+  ProcessAccessHelp::targetSizeOfImage = process_of_id->imageSize;
 
 	apiReader.readApisFromModuleList();
 
