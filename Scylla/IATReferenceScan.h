@@ -73,6 +73,7 @@ public:
 	void printDirectImportLog();
 	void changeIatBaseOfDirectImports( DWORD newIatBaseAddressRVA );
 	DWORD addAdditionalApisToList();
+
 private:
 	DWORD_PTR NewIatAddressRVA;
 
@@ -104,7 +105,6 @@ private:
 	void patchDirectImportInDump32( int patchPreFixBytes, int instructionSize, DWORD patchBytes, BYTE * memory, DWORD memorySize, bool generateReloc, DWORD patchOffset, DWORD sectionRVA );
 	void patchDirectImportInDump64( int patchPreFixBytes, int instructionSize, DWORD_PTR patchBytes, BYTE * memory, DWORD memorySize, bool generateReloc, DWORD patchOffset, DWORD sectionRVA );
 	void patchDirectJumpTableEntry(DWORD_PTR targetIatPointer, DWORD_PTR stdImagebase, DWORD directImportsJumpTableRVA, PeParser * peParser, BYTE * jmpTableMemory, DWORD newIatBase );
-
 
 };
 
