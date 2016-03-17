@@ -10,7 +10,7 @@
 
 FileLog IATReferenceScan::directImportLog(L"Scylla_direct_imports.log");
 
-int IATReferenceScan::numberOfFoundDirectImports()
+auto IATReferenceScan::numberOfFoundDirectImports () -> int
 {
   return (int)iatDirectImportList.size();
 }
@@ -41,8 +41,8 @@ auto IATReferenceScan::numberOfFoundUniqueDirectImports () -> int
 auto IATReferenceScan::numberOfDirectImportApisNotInIat () -> int
 {
   auto apiPointers = std::set<DWORD_PTR>{};
-  for (auto const & iat : iatDirectImportList) {
-    if (iat->targetPointer == nullptr) apiPointers.insert(iat.targetAddressInIat);
+  for (auto&& iat : iatDirectImportList) {
+    if (iat.targetPointer == 0) apiPointers.insert(iat.targetAddressInIat);
   }
 
   return apiPointers.size();

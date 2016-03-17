@@ -296,10 +296,10 @@ bool ProcessAccessHelp::readMemoryFromProcess(DWORD_PTR address, SIZE_T size, LP
 	return returnValue;
 }
 
-bool ProcessAccessHelp::decomposeMemory(BYTE * dataBuffer, SIZE_T bufferSize, DWORD_PTR startAddress)
+auto ProcessAccessHelp::decomposeMemory(BYTE * dataBuffer, SIZE_T bufferSize, DWORD_PTR startAddress) -> bool
 {
-
 	ZeroMemory(&decomposerCi, sizeof(_CodeInfo));
+
 	decomposerCi.code = dataBuffer;
 	decomposerCi.codeLen = (int)bufferSize;
 	decomposerCi.dt = dt;

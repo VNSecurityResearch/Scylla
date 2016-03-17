@@ -6,7 +6,7 @@
 
 //#define DEBUG_COMMENTS
 
-bool IATSearch::searchImportAddressTableInProcess( DWORD_PTR startAddress, DWORD_PTR* addressIAT, DWORD* sizeIAT, bool advanced )
+bool IATSearch::searchImportAddressTableInProcess(DWORD_PTR startAddress, DWORD_PTR* addressIAT, DWORD* sizeIAT, bool advanced)
 {
 	DWORD_PTR addressInIAT = 0;
 
@@ -34,31 +34,32 @@ bool IATSearch::searchImportAddressTableInProcess( DWORD_PTR startAddress, DWORD
 	}
 }
 
-bool IATSearch::findIATAdvanced( DWORD_PTR startAddress, DWORD_PTR* addressIAT, DWORD* sizeIAT )
+auto IATSearch::findIATAdvanced (DWORD_PTR startAddress, DWORD_PTR* addressIAT, DWORD* sizeIAT) -> bool
 {
-	BYTE *dataBuffer;
+	//BYTE *dataBuffer;
 	DWORD_PTR baseAddress;
 	SIZE_T memorySize;
 
 	findExecutableMemoryPagesByStartAddress(startAddress, &baseAddress, &memorySize);
 
-	if (memorySize == 0)
-		return false;
+	if (memorySize == 0) return false;
 
-	dataBuffer = new BYTE[memorySize];
+	//dataBuffer = new BYTE[memorySize];
+  auto dataBuffer = std::shared_ptr<BYTE>(std::allocator<BYTE>().allocate(memorySize), std::default_delete<BYTE[]>());
 
-	if (!readMemoryFromProcess((DWORD_PTR)baseAddress, memorySize,dataBuffer))
+	if (!readMemoryFromProcess(baseAddress, memorySize, dataBuffer.get()))
 	{
 #ifdef DEBUG_COMMENTS
 		Scylla::debugLog.log(L"findAPIAddressInIAT2 :: error reading memory");
 #endif
-		delete [] dataBuffer;
+		//delete [] dataBuffer;
 		return false;
 	}
 
 	std::set<DWORD_PTR> iatPointers;
 	DWORD_PTR next;
-	BYTE * tempBuf = dataBuffer;
+	//BYTE * tempBuf = dataBuffer;
+  auto tempBuf = dataBuffer.get();
 	while(decomposeMemory(tempBuf, memorySize, (DWORD_PTR)baseAddress) && decomposerInstructionsCount != 0)
 	{
 		findIATPointers(iatPointers);
@@ -98,7 +99,7 @@ bool IATSearch::findIATAdvanced( DWORD_PTR startAddress, DWORD_PTR* addressIAT, 
 	Scylla::windowLog.log(L"IAT Search Adv: Found %d (0x%X) possible IAT entries.", iatPointers.size(), iatPointers.size());
 	Scylla::windowLog.log(L"IAT Search Adv: Possible IAT first " PRINTF_DWORD_PTR_FULL L" last " PRINTF_DWORD_PTR_FULL L" entry.", *(iatPointers.begin()), *(--iatPointers.end()));
 
-	delete [] dataBuffer;
+	//delete [] dataBuffer;
 
 	return true;
 }
